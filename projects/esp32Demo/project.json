@@ -1,0 +1,11 @@
+{
+  "name": "espMorseMachine",
+  "long_name_nl": "esp Morse Machine voor",
+  "long_name_en": "esp Morse machine for the esp32",
+  "flasher": "esptool",
+  "firmware_extension": ".bin",
+  "soc": "esp32dev",
+  "default_baud": 115200,
+  "description_en": "A text to morse-code machine for the esp32 (sample project)",
+  "description_nl": "Een tekst naar morse-code machine voor de esp32 (demo project)"
+}

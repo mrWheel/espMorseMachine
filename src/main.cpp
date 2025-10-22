@@ -1,21 +1,21 @@
 #include <Arduino.h>
 #include <map>
 
+#define FSYS LittleFS
+
 #if defined(ESP8266)
   #include <ESP8266WiFi.h>
   #include <WiFiManager.h>
   #include <LittleFS.h>
   #include <ESP8266WebServer.h>
   ESP8266WebServer server(80);
-  #define FSYS LittleFS
 #elif defined(ESP32)
   #include <WiFi.h>
   #include <WiFiManager.h>
   #include <FS.h>
-  #include <LITTLEFS.h>
+  #include <LittleFS.h>
   #include <WebServer.h>
   WebServer server(80);
-  #define FSYS LITTLEFS
 #else
   #error "Define ESP8266 or ESP32 via -DESP8266 or -DESP32"
 #endif
@@ -48,6 +48,55 @@ std::map<char, String> morseMap =
   {'9', "----."}, {'0', "-----"},
   {' ', " / "}
 };
+
+
+//===========================================================================================
+/**
+void startWiFi(const char *hostname, int timeOut, bool eraseCredentials)
+{
+  WiFi.mode(WIFI_STA);
+
+  WiFiManager manageWiFi;
+  uint32_t lTime = millis();
+  String thisAP = String(hostname) + "-" + WiFi.macAddress();
+
+  DebugTf("startWiFi ...[%s]\r\n",  thisAP.c_str());
+
+  manageWiFi.setDebugOutput(true);
+
+  //--- sets timeout until configuration portal gets turned off
+  //--- useful to make it all retry or go to sleep in seconds
+  //manageWiFi.setTimeout(240);  // 4 minuten
+  manageWiFi.setTimeout(timeOut);  // in seconden ...
+
+  //--- fetches ssid and pass and tries to connect
+  //--- if it does not connect it starts an access point with the specified name
+  //--- here  "DSMR-WS-<MAC>"
+  //--- and goes into a blocking loop awaiting configuration
+  if (!manageWiFi.autoConnect(thisAP.c_str()))
+  {
+    Serial.println(F("failed to connect and hit timeout"));
+    Serial.printf(" took [%d] milli-seconds ==> ERROR!\r\n", (millis() - lTime));
+  }
+  else
+  {
+    Serial.printf("Connected with IP-address [%s]\r\n\r\n", WiFi.localIP().toString().c_str());
+  }
+  
+  strlcpy(myWiFi.SSID,     manageWiFi.getWiFiSSID().c_str(), _MY_SSID_LEN);
+  strlcpy(myWiFi.password, manageWiFi.getWiFiPass().c_str(), _MY_PASSWD_LEN);
+
+  if (WiFi.softAPdisconnect(true))
+        Serial.println("WiFi Access Point disconnected and closed");
+  else  Serial.println("Hm.. could not disconnect WiFi Access Point! (maybe there was none?)\r\n");
+  
+  Serial.printf("startWiFi() took [%d] milli-seconds => OK!\r\n", (millis() - lTime));
+
+  myWiFi.ipGateway = WiFi.gatewayIP();
+
+  
+} // startWiFi()
+**/
 
 // ------------------------------------------------------------
 // Helpers
@@ -118,12 +167,19 @@ bool askYesNo(const char *prompt, bool defaultYes, uint32_t timeoutMs)
 
 bool connectWithSaved(uint32_t timeoutSec)
 {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(); // gebruikt opgeslagen creds
+
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - t0) < timeoutSec * 1000UL)
+  {
+    delay(500);
+    Serial.print('.');
+  }
+  Serial.println();
+
   String ssid = WiFi.SSID();
   String psk  = WiFi.psk();    // (kan leeg zijn als niet eerder ingesteld)
-
-  Serial.println("— Probeert opgeslagen WiFi —");
-  Serial.printf("  SSID: %s\n", ssid.c_str());
-  Serial.printf("  PSK : %s\n", psk.c_str());
 
   if (ssid.length() == 0)
   {
@@ -131,15 +187,9 @@ bool connectWithSaved(uint32_t timeoutSec)
     return false;
   }
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(); // gebruikt opgeslagen creds
-  unsigned long t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && (millis() - t0) < timeoutSec * 1000UL)
-  {
-    delay(250);
-    Serial.print('.');
-  }
-  Serial.println();
+  Serial.println("Opgeslagen credentials:");
+  Serial.printf("  SSID: %s\n", ssid.c_str());
+  Serial.printf("  PSK : %s\n", psk.c_str());
 
   if (WiFi.status() == WL_CONNECTED)
   {
@@ -155,51 +205,79 @@ bool connectWithSaved(uint32_t timeoutSec)
 
 bool startPortalAndReconnect(const String &apName)
 {
+  // Construct per platform
+  #if defined(ESP8266)
     WiFiManager wm;
-    wm.setDebugOutput(true);
-    wm.setTimeout(WIFI_TIMEOUT); // sluit automatisch na timeout
+  #elif defined(ESP32)
+    // Let the library manage AP + WebServer internally
+    WiFiManager wm;
+  #endif
 
+  wm.setDebugOutput(true);
+
+  // Portal-timeout (sluit na WIFI_TIMEOUT seconden)
+  // (Bij sommige versies heet dit setConfigPortalTimeout; jouw build accepteerde setTimeout)
+  wm.setTimeout(WIFI_TIMEOUT);
+
+  // Voor de zekerheid AP+STA mode, maar géén handmatige softAP hier.
+  WiFi.mode(WIFI_AP_STA);
+  delay(100);
+
+  // Toon resultaat en ingevoerde data
+  String ssid = WiFi.SSID();
+  String psk  = WiFi.psk();
+  Serial.println("Start with saved credentials:");
+  Serial.printf("  SSID: %s\n", ssid.c_str());
+  Serial.printf("  PSK : %s\n", psk.c_str());
+  bool connected = wm.autoConnect(ssid.c_str(), psk.c_str());
+  if(!connected) 
+  {
+    Serial.println("Failed to connect");
     Serial.println("🧭 Start WiFiManager portal...");
-    bool connected = wm.startConfigPortal(apName.c_str()); // blokkeert
+    connected = wm.startConfigPortal(apName.c_str()); // blokkeert tot connect/timeout
+  } 
+  else 
+  {
+    //if you get here you have connected to the WiFi    
+    Serial.println("connected...yeey :)");
+  }
 
-    // Toon resultaat en ingevoerde data
-    String ssid = WiFi.SSID();
-    String psk  = WiFi.psk();
+  Serial.println("💾 Terug uit portal — credentials nu:");
+  Serial.printf("  SSID: %s\n", ssid.c_str());
+  Serial.printf("  PSK : %s\n", psk.c_str());
 
-    Serial.println("💾 Terug uit portal — credentials nu:");
-    Serial.printf("  SSID: %s\n", ssid.c_str());
-    Serial.printf("  PSK : %s\n", psk.c_str());
+  if (!connected)
+  {
+    Serial.println("⚠️  Portal afgebroken of timeout.");
+  }
 
-    if (!connected)
+  // Forceren: nog een keer proberen met wat nu ingesteld staat
+  if (ssid.length())
+  {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid.c_str(), psk.c_str());
+
+    unsigned long t0 = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - t0) < WIFI_TIMEOUT * 1000UL)
     {
-        Serial.println("⚠️  Portal afgebroken of timeout.");
+      delay(250);
+      Serial.print('.');
     }
+    Serial.println();
+  }
 
-    // Extra verbindingspoging met de nieuwe credentials
-    if (ssid.length())
-    {
-        WiFi.begin(ssid.c_str(), psk.c_str());
-        unsigned long t0 = millis();
-        while (WiFi.status() != WL_CONNECTED && (millis() - t0) < WIFI_TIMEOUT * 1000UL)
-        {
-            delay(250);
-            Serial.print('.');
-        }
-        Serial.println();
-    }
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.println("✅ Verbonden met opgeslagen credentials");
+    Serial.printf("📶 SSID: %s\n", WiFi.SSID().c_str());
+    Serial.printf("🌐 IP  : %s\n", WiFi.localIP().toString().c_str());
+    return true;
+  }
 
-    if (WiFi.status() == WL_CONNECTED)
-    {
-        Serial.println("✅ Verbonden met nieuwe credentials");
-        Serial.printf("📶 SSID: %s\n", WiFi.SSID().c_str());
-        Serial.printf("🌐 IP  : %s\n", WiFi.localIP().toString().c_str());
-        return true;
-    }
-
-    Serial.printf("❌ Verbinden met nieuwe credentials mislukt (status=%d)\n", WiFi.status());
-    WiFi.mode(WIFI_STA);   // Verlaat AP-modus van WiFiManager
-    delay(100);
-    return false;
+  Serial.printf("❌ Verbinden met nieuwe credentials mislukt (status=%d)\n", WiFi.status());
+  WiFi.mode(WIFI_STA);   // netjes terug naar STA
+  delay(100);
+  return false;
 }
 
 void startAp(const String &apName)
@@ -345,9 +423,10 @@ void startWifi()
     String apName = "espMorseMachine-" + macSuffixWwXxYyZz();
 
     Serial.println("=== WiFi Initialisatie ===");
-    Serial.printf("📛 AP/Systeemnaam: %s\n", apName.c_str());
 
     // Stap 1: probeer opgeslagen netwerk
+    Serial.println("Probeer met opgeslagen credentials te verbinden...");
+    Serial.printf("📛 AP/Systeemnaam: %s\n", apName.c_str());
     if (connectWithSaved(WIFI_TIMEOUT))
     {
         return;
