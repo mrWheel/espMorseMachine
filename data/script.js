@@ -17,6 +17,7 @@ const gpioInput       = document.getElementById("gpioInput");
 const invertNormal    = document.getElementById("invertNormal");
 const invertInversed  = document.getElementById("invertInversed");
 const lamp            = document.getElementById("lamp");
+const versionDiv      = document.getElementById("version");
 
 // -------------------- helpers ------------------------
 
@@ -242,3 +243,24 @@ sendButton.addEventListener("click", async () =>
   textInput.value = "";
   setUiEnabled(true);
 });
+
+// -------------------- versie ophalen ------------------
+
+async function fetchVersion()
+{
+  try
+  {
+    const res = await fetch("/version");
+    if (res.ok)
+    {
+      const version = await res.text();
+      versionDiv.textContent = version;
+    }
+  }
+  catch (e)
+  {
+    // negeer fetchfouten
+  }
+}
+
+fetchVersion();

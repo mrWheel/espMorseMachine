@@ -3,6 +3,15 @@
 
 #define FSYS LittleFS
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
+#ifndef VERSION
+  const char* PROG_VERSION = "v0.0.0";
+#else
+  const char* PROG_VERSION = TOSTRING(VERSION);
+#endif
+
 #if defined(ESP8266)
   #include <ESP8266WiFi.h>
   #include <WiFiManager.h>
@@ -49,54 +58,6 @@ std::map<char, String> morseMap =
   {' ', " / "}
 };
 
-
-//===========================================================================================
-/**
-void startWiFi(const char *hostname, int timeOut, bool eraseCredentials)
-{
-  WiFi.mode(WIFI_STA);
-
-  WiFiManager manageWiFi;
-  uint32_t lTime = millis();
-  String thisAP = String(hostname) + "-" + WiFi.macAddress();
-
-  DebugTf("startWiFi ...[%s]\r\n",  thisAP.c_str());
-
-  manageWiFi.setDebugOutput(true);
-
-  //--- sets timeout until configuration portal gets turned off
-  //--- useful to make it all retry or go to sleep in seconds
-  //manageWiFi.setTimeout(240);  // 4 minuten
-  manageWiFi.setTimeout(timeOut);  // in seconden ...
-
-  //--- fetches ssid and pass and tries to connect
-  //--- if it does not connect it starts an access point with the specified name
-  //--- here  "DSMR-WS-<MAC>"
-  //--- and goes into a blocking loop awaiting configuration
-  if (!manageWiFi.autoConnect(thisAP.c_str()))
-  {
-    Serial.println(F("failed to connect and hit timeout"));
-    Serial.printf(" took [%d] milli-seconds ==> ERROR!\r\n", (millis() - lTime));
-  }
-  else
-  {
-    Serial.printf("Connected with IP-address [%s]\r\n\r\n", WiFi.localIP().toString().c_str());
-  }
-  
-  strlcpy(myWiFi.SSID,     manageWiFi.getWiFiSSID().c_str(), _MY_SSID_LEN);
-  strlcpy(myWiFi.password, manageWiFi.getWiFiPass().c_str(), _MY_PASSWD_LEN);
-
-  if (WiFi.softAPdisconnect(true))
-        Serial.println("WiFi Access Point disconnected and closed");
-  else  Serial.println("Hm.. could not disconnect WiFi Access Point! (maybe there was none?)\r\n");
-  
-  Serial.printf("startWiFi() took [%d] milli-seconds => OK!\r\n", (millis() - lTime));
-
-  myWiFi.ipGateway = WiFi.gatewayIP();
-
-  
-} // startWiFi()
-**/
 
 // ------------------------------------------------------------
 // Helpers
@@ -376,6 +337,13 @@ void handleGpio()
   server.send(200, "text/plain", "OK");
 }
 
+// Geeft programmaversie terug voor frontend
+// /version
+void handleVersion()
+{
+  server.send(200, "text/plain", PROG_VERSION);
+}
+
 // Seriële logging synchroon met frontend:
 // /serial?start=Tekst
 // /serial?symbol=.,-,SPACE,WORD
@@ -471,6 +439,8 @@ void setup()
   delay(300);
   Serial.println();
   Serial.println("=== ESP Morse Machine ===");
+  Serial.printf("Version: %s\n", PROG_VERSION);
+  Serial.println("===========================");
 
   if (!FSYS.begin())
   {
@@ -486,6 +456,7 @@ void setup()
   server.on("/morse",      handleMorse);
   server.on("/gpio",       handleGpio);
   server.on("/serial",     handleSerialLog);
+  server.on("/version",    handleVersion);
 
   server.begin();
   Serial.println("✅ Webserver gestart.");

@@ -4,16 +4,7 @@
   "long_name_en": "esp Morse machine for the esp32",
   "flasher": "esptool",
   "firmware_extension": ".bin",
-  "soc": "esp32dev",
   "default_baud": 115200,
   "description_en": "A text to morse-code machine for the esp32 (sample project)",
-  "description_nl": "Een tekst naar morse-code machine voor de esp32 (demo project)",
-  "flash_layout": {
-    "flash_size": "4MB",
-    "firmware_offset": "0x1000",
-    "filesystem_offset": "0x290000",
-    "max_firmware_size": 1966080,
-    "max_filesystem_size": 1048576,
-    "notes": "ESP32-DEV2 with 4MB flash"
-    }
+  "description_nl": "Een tekst naar morse-code machine voor de esp32 (demo project)"
 }

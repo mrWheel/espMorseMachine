@@ -5,7 +5,7 @@
 
 [platformio]
 workspace_dir = .pio.nosync
-default_envs = esp32dev-v1_1_1
+default_envs = esp32-v1.1.1
 
 [env]
 framework = arduino
@@ -22,16 +22,15 @@ build_flags =
 ; ============================================================
 ; ESP32 target v1.1.1
 ; ============================================================
-[env:esp32dev-v1_1_1]
+[env:esp32-v1.1.1]
 platform = espressif32@6.8.1
 board = esp32dev
-extra_scripts = scripts/custom_build.py
+;extra_scripts = scripts/custom_build.py
 ;board_build.partitions = projects/esp32Demo/esp32/v0.2.8/default.csv
 upload_port = /dev/cu.usbserial-3
 build_flags =
   ${env.build_flags}
   -DESP32
-  -DVERSION=v1.1.1
   -DCORE_DEBUG_LEVEL=1
 ;  -DCORE_DEBUG_LEVEL=0      ; Geen logs
 ;  -DCORE_DEBUG_LEVEL=1      ; Alleen fouten
@@ -46,16 +45,15 @@ lib_deps =
 ; ============================================================
 ; ESP32 target v2.2.2
 ; ============================================================
-[env:esp32dev-v2_2_2]
+[env:esp32-v2.2.2]
 platform = espressif32@6.8.1
 board = esp32dev
-extra_scripts = scripts/custom_build.py
+;extra_scripts = scripts/custom_build.py
 ;board_build.partitions = projects/esp32Demo/esp32/v0.2.8/default.csv
 upload_port = /dev/cu.usbserial-3
 build_flags =
   ${env.build_flags}
   -DESP32
-  -DVERSION=v2.2.2
   -DCORE_DEBUG_LEVEL=1
 ;  -DCORE_DEBUG_LEVEL=0      ; Geen logs
 ;  -DCORE_DEBUG_LEVEL=1      ; Alleen fouten
@@ -70,15 +68,14 @@ lib_deps =
 ; ============================================================
 ; ESP8266 v3.3.3
 ; ============================================================
-[env:esp12e-v3_3_3]
+[env:esp8266-v3.3.3]
 platform = espressif8266@4.2.1
 board = esp12e
-extra_scripts = scripts/custom_build.py
+;extra_scripts = scripts/custom_build.py
 upload_port = /dev/cu.usbserial-3224143
 build_flags =
   ${env.build_flags}
   -DESP8266
-  -DVERSION=v3.3.3
   -DCORE_DEBUG_LEVEL=3
 lib_deps =
   ${env.lib_deps}
