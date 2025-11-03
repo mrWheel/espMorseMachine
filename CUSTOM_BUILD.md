@@ -40,7 +40,7 @@ projects/
 └── {project_name}/           # Bijv. "morseMachine"
     ├── {board}/              # Bijv. "esp32dev", "esp32-s3", "esp12e"
     │   └── {version}/        # Bijv. "v1.0.0"
-    │       ├── flash.json
+    │       ├── flash.json    # Gegenereerd uit idedata.json (voor esp32)
     │       ├── firmware.bin
     │       ├── littlefs.bin (of spiffs.bin)
     │       └── ESP32 specifiek:
@@ -72,6 +72,34 @@ Detectie: `"8266"` in platform name (case-insensitive)
 - NodeMCU
 - Wemos D1 Mini
 - Alle ESP8266 varianten
+
+## Auto-Sync Functionaliteit
+
+Het script bevat een intelligente auto-sync functie die automatisch detecteert wanneer project files bijgewerkt moeten worden, ook bij cached builds in VSCode of via CLI.
+
+### Hoe werkt Auto-Sync?
+
+1. **Timestamp Checking**
+   - Vergelijkt timestamps van build output met project directory
+   - Detecteert of firmware.bin nieuwer is dan gekopieerde versie
+   - Detecteert of filesystem images bestaan maar nog niet gekopieerd zijn
+
+2. **Automatische Sync**
+   - Bij cached builds waar bestanden wel gebouwd maar niet gekopieerd zijn
+   - Na buildfs → buildprog volgorde (filesystem eerst, dan firmware)
+   - Bij incremental builds in VSCode
+
+3. **Efficiëntie**
+   - Alleen sync wanneer nodig
+   - Geen onnodige file operations bij volledig cached builds
+   - Minimale overhead (timestamp vergelijking)
+
+### Voordelen Auto-Sync
+
+✅ **Geen handmatige clean meer nodig** - VSCode Build knop werkt altijd correct  
+✅ **Flexibele build volgorde** - buildfs dan buildprog, of omgekeerd  
+✅ **Cached builds ondersteuning** - Snelle rebuilds met correcte output  
+✅ **VSCode UI compatible** - Werkt met standaard PlatformIO knoppen  
 
 ## Workflow
 
@@ -178,9 +206,13 @@ Als idedata.json niet beschikbaar of parsing faalt:
 3. **Bepaal Filesystem Offset**
    
    **Methode 1 - Uit partitions.csv (ESP32):**
+   - Leest partitions.csv uit project directory
+   - Check zowel `Name` als `SubType` kolommen
+   - Ondersteunt: spiffs, littlefs, fatfs, ffat
+   - Voorbeeld:
    ```csv
    # Name,   Type, SubType, Offset,  Size
-   spiffs,   data, spiffs,  0x290000, 0x170000
+   spiffs,   data, spiffs,  0x790000, 0x70000
    ```
    
    **Methode 2 - Standaard offsets:**
@@ -189,6 +221,24 @@ Als idedata.json niet beschikbaar of parsing faalt:
 
 4. **Update flash.json**
    Voegt filesystem image toe aan flash_files array
+
+### Auto-Sync Fase
+
+**Timing:** Na `firmware.elf` build (cached builds)
+
+1. **Check Firmware Status**
+   - Vergelijkt timestamp van firmware.bin in build dir vs project dir
+   - Triggert post_build_action bij wijzigingen
+
+2. **Check Filesystem Status**
+   - Detecteert of filesystem image bestaat in build dir
+   - Controleert of deze al gekopieerd is naar project dir
+   - Triggert post_build_action als filesystem ontbreekt
+
+3. **Slim Gedrag**
+   - Geen actie bij volledig cached builds (alles up-to-date)
+   - Sync alleen wat nodig is
+   - Werkt onafhankelijk van build volgorde
 
 ## Output: flash.json
 
@@ -278,13 +328,25 @@ board_build.partitions = projects/myProject/esp32-s3/v1.5.0/huge_app.csv
 
 ## Build Commands
 
-### Volledige Build
+### Volledige Build (Automatisch)
 ```bash
+# Via CLI
 platformio run -e esp32dev-v1_0_0
 platformio run -e esp32dev-v1_0_0 -t buildfs
+
+# Of combined
+platformio run -e esp32dev-v1_0_0 && platformio run -e esp32dev-v1_0_0 -t buildfs
 ```
 
-### Clean Build
+### VSCode Build Knoppen
+Het script werkt automatisch met VSCode PlatformIO UI:
+- ✅ **Build** knop - Werkt direct (auto-sync bij cached builds)
+- ✅ **Upload** knop - Build + upload in één actie
+- ✅ **Build Filesystem Image** knop - Maakt en kopieert filesystem
+- ℹ️ **Clean** knop - Optioneel, niet meer nodig voor correcte sync
+
+### Clean Build (Optioneel)
+Alleen nodig bij problemen of complete rebuild:
 ```bash
 platformio run -e esp32dev-v1_0_0 -t clean
 platformio run -e esp32dev-v1_0_0
@@ -293,7 +355,7 @@ platformio run -e esp32dev-v1_0_0 -t buildfs
 
 ## Console Output
 
-### ESP32 Build
+### ESP32 Build (Clean)
 ```
 >>> [PRE-BUILD] Voor myProject/esp32dev/v1.0.0
   Aangepaste partitions file gevonden: custom.csv
@@ -327,6 +389,26 @@ platformio run -e esp32dev-v1_0_0 -t buildfs
   ℹ️  Filesystem offset gevonden in partitions.csv: 0x290000
   ✓ flash.json bijgewerkt met littlefs.bin
 >>> [POST-BUILDFS] Klaar.
+```
+
+### ESP32 Cached Build met Auto-Sync
+```
+>>> Auto-sync: Detected changes, updating project files...
+
+>>> [POST-BUILD] Voor myProject/esp32dev/v1.0.0
+  ESP32 gedetecteerd - genereer idedata.json...
+  Kopieer flash images met offsets uit idedata.json:
+  ✓ bootloader.bin → projects/myProject/esp32dev/v1.0.0/bootloader.bin
+  ✓ partitions.bin → projects/myProject/esp32dev/v1.0.0/partitions.bin
+  ✓ boot_app0.bin → projects/myProject/esp32dev/v1.0.0/boot_app0.bin
+  Kopieer firmware met offset 0x10000:
+  ✓ firmware.bin → projects/myProject/esp32dev/v1.0.0/firmware.bin
+  Zoek naar filesystem image...
+  Kopieer filesystem image: littlefs.bin
+  ✓ littlefs.bin → projects/myProject/esp32dev/v1.0.0/littlefs.bin
+  ℹ️  Filesystem offset gevonden in partitions.csv: 0x790000
+  ✓ flash.json aangemaakt
+>>> [POST-BUILD] Klaar.
 ```
 
 ### ESP8266 Build
@@ -479,12 +561,20 @@ print(cmd)
 2. Verwijder `.pio/build/{env}/idedata.json` en rebuild
 3. Check custom partitions file voor correcte offsets
 
-### Bestanden niet gekopieerd
-**Probleem:** Bestanden niet in project directory
-**Oplossing:**
-1. Run clean build: `pio run -e {env} -t clean`
-2. Check console output voor error messages
-3. Verifieer dat `extra_scripts` correct is ingesteld
+### Bestanden niet gekopieerd na cached build
+**Probleem:** Na een cached build in VSCode staan bestanden niet in project directory  
+**Oplossing:** Dit wordt nu automatisch opgelost door auto-sync. Indien toch problemen:
+1. Check console output voor "Auto-sync" berichten
+2. Verifieer dat timestamps correct zijn (geen clock skew)
+3. Als persistent: run clean build
+
+### Build werkt in CLI maar niet in VSCode
+**Probleem:** Script werkt via terminal maar niet met VSCode UI knoppen  
+**Oplossing:** Dit is opgelost met auto-sync functionaliteit. VSCode gebruikt cached builds, die nu automatisch gedetecteerd en gesync'd worden.
+
+### Filesystem gebouwd voor firmware
+**Probleem:** Buildfs uitgevoerd, daarna buildprog, bestanden niet gekopieerd  
+**Oplossing:** Auto-sync detecteert dit automatisch en kopieert alle benodigde bestanden bij de buildprog actie.
 
 ## Voordelen
 
@@ -512,3 +602,60 @@ print(cmd)
    - Custom partition schemes
    - Verschillende filesystems (LittleFS/SPIFFS)
    - Platform-specifieke optimalisaties
+
+6. **Intelligent Auto-Sync**
+   - Werkt met cached builds
+   - Geen handmatige clean nodig
+   - VSCode UI compatible
+   - Flexibele build volgorde (buildfs eerst of buildprog eerst)
+   - Efficiënt (sync alleen bij wijzigingen)
+
+## Technische Details
+
+### Filesystem Offset Detectie
+
+De `get_filesystem_offset()` functie gebruikt een robuuste aanpak:
+
+1. **Primary Method - partitions.csv parsing:**
+   ```python
+   # Check zowel Name als SubType kolommen
+   if 'spiffs' in name or 'spiffs' in subtype:
+       return offset
+   if 'littlefs' in name or 'littlefs' in subtype:
+       return offset
+   # Ook: fatfs, ffat
+   ```
+
+2. **Hex Offset Conversie:**
+   - Accepteert hex (0x790000) en decimal formaten
+   - Normaliseert naar hex string
+   - Fallback bij parse errors
+
+3. **Standaard Offsets:**
+   - ESP32: 0x290000 (2.625 MB)
+   - ESP8266: 0x300000 (3 MB)
+
+### Board Build Partitions
+
+Het script leest `board_build.partitions` correct via:
+```python
+custom_partitions = env.GetProjectOption("board_build.partitions", None)
+```
+
+Dit zorgt voor correcte detectie van custom partition files in platformio.ini, zoals:
+```ini
+board_build.partitions = partitions/default_8MB.csv
+board_build.partitions = partitions/bigProgSmallSpiffs.csv
+```
+
+### Build Event Hooks
+
+Het script registreert meerdere build hooks:
+```python
+env.AddPreAction("buildprog", pre_build_action)
+env.AddPostAction("buildprog", post_build_action)
+env.AddPostAction("$BUILD_DIR/firmware.elf", check_and_sync)
+env.AddPostAction("buildfs", post_buildfs_action)
+```
+
+De `check_and_sync` hook op firmware.elf zorgt voor auto-sync bij cached builds.

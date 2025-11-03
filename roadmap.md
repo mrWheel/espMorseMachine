@@ -4,8 +4,8 @@
 ESP Morse Machine
 
 ## Hardware:
-	•	ESP8266 (NodeMCU of Wemos D1 Mini) en ESP32 (via compiler option)
-	•	4MB flash, 2MB LittleFS
+	•	Via platformio.ini selectie: ESP8266 (alle varianten en alle partition.csv) en ESP32 (ALLE varianten)
+	•	Alle mogelijke flash grootte via idedata.json (esp32) flash, spiffs of LittleFS
 	•	Optioneel LED of buzzer aangesloten op configureerbare GPIO-pin
 
 ## Coding
@@ -44,7 +44,7 @@ idem voor ***pio***:
 ⸻
 
 # Webinterface
-## Bestanden in /data (LittleFS):
+## Bestanden in /data (LittleFS of SPIFFS):
 	•	index.html
 	•	style.css
 	•	script.js
@@ -107,17 +107,19 @@ idem voor ***pio***:
 ### PlatformIO Custom Build Script (scripts/custom_build.py)
 
 Het project gebruikt een custom build script dat automatisch flash configuraties genereert voor verschillende ESP platforms.
+Lees CUSTOM_BUILD.md
 
 #### ESP32 - Dynamische Flash Configuratie via idedata.json:
 	1.	Pre-build:
 	    - Kopieert custom partitions.csv naar project directory (indien gespecificeerd)
 	    - Kopieert boot_app0.bin uit framework
 	2.	Post-build:
-	    - Genereert idedata.json via PlatformIO
+	    - Leest door PlatformIO gegenereerde idedata.json 
 	    - Leest flash_images array met offsets voor:
 	        * bootloader.bin
 	        * partitions.bin  
 	        * boot_app0.bin
+          * ...
 	    - Leest application_offset voor firmware.bin
 	    - Kopieert alle bestanden met correcte offsets
 	    - Genereert flash.json met complete flash configuratie

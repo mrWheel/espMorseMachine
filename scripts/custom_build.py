@@ -108,7 +108,7 @@ def pre_build_action(source, target, env):
     # 1️⃣ Controleer op custom partitions file
     custom_partitions = None
     try:
-      custom_partitions = project_config.get(f"env:{active_env}", "board_build.partitions", fallback=None)
+      custom_partitions = env.GetProjectOption("board_build.partitions", None)
     except Exception:
       pass
 
@@ -353,16 +353,26 @@ def get_filesystem_offset(build_dir, target_dir):
             continue
           parts = [p.strip() for p in line.split(',')]
           if len(parts) >= 4:
-            # Format: Name, Type, SubType, Offset, Size
+            # Format: Name, Type, SubType, Offset, Size, Flags
             name = parts[0].lower()
-            if 'spiffs' in name or 'littlefs' in name or 'fatfs' in name:
-              offset = parts[3]
-              #-- Converteer naar hex formaat als nodig
+            subtype = parts[2].lower() if len(parts) > 2 else ""
+            
+            # Check zowel name als subtype voor filesystem types
+            if any(fs_type in name or fs_type in subtype 
+                   for fs_type in ['spiffs', 'littlefs', 'fatfs', 'ffat']):
+              offset = parts[3].strip()
+              
+              # Zorg dat offset in hex format is
               if not offset.startswith('0x'):
                 try:
-                  offset = hex(int(offset))
+                  offset = hex(int(offset, 16))
                 except:
-                  pass
+                  try:
+                    offset = hex(int(offset))
+                  except:
+                    print(f"  ⚠️  Kan offset niet parsen: {offset}")
+                    continue
+              
               print(f"  ℹ️  Filesystem offset gevonden in partitions.csv: {offset}")
               return offset
     except Exception as e:
@@ -427,6 +437,39 @@ def post_buildfs_action(source, target, env):
   print(">>> [POST-BUILDFS] Klaar.\n")
 
 # ---------------- ACTIES KOPPELEN ----------------
+# Voor cached builds: check altijd of target bestanden up-to-date zijn
+def check_and_sync(source, target, env):
+  """Check of output bestanden up-to-date zijn, zo niet, sync."""
+  build_dir = env.subst("$BUILD_DIR")
+  
+  # Check of firmware.bin bestaat en gekopieerd moet worden
+  firmware_src = os.path.join(build_dir, "firmware.bin")
+  firmware_dst = os.path.join(target_dir, "firmware.bin")
+  
+  needs_post_build = False
+  
+  if os.path.exists(firmware_src):
+    # Als target niet bestaat of ouder is dan source, run post_build_action
+    if not os.path.exists(firmware_dst) or \
+       os.path.getmtime(firmware_src) > os.path.getmtime(firmware_dst):
+      needs_post_build = True
+  
+  # Check filesystem image - dit moet ook gecheckt worden bij buildprog
+  # voor het geval buildfs al eerder is uitgevoerd
+  for fs_img in ["littlefs.bin", "spiffs.bin"]:
+    fs_src = os.path.join(build_dir, fs_img)
+    fs_dst = os.path.join(target_dir, fs_img)
+    
+    if os.path.exists(fs_src):
+      if not os.path.exists(fs_dst):
+        needs_post_build = True
+        break
+  
+  if needs_post_build:
+    print("\n>>> Auto-sync: Detected changes, updating project files...")
+    post_build_action(source, target, env)
+
 env.AddPreAction("buildprog", pre_build_action)
 env.AddPostAction("buildprog", post_build_action)
+env.AddPostAction("$BUILD_DIR/firmware.elf", check_and_sync)
 env.AddPostAction("buildfs", post_buildfs_action)
