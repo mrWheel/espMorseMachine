@@ -1,0 +1,14 @@
+{
+  "board": "esp12e",
+  "version": "v3.3.3",
+  "flash_files": [
+    {
+      "offset": "0x0",
+      "file": "firmware.bin"
+    },
+    {
+      "offset": "0x300000",
+      "file": "littlefs.bin"
+    }
+  ]
+}

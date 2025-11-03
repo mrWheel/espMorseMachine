@@ -1,9 +1,9 @@
 {
-  "board": "esp32dev",
-  "version": "v2.2.2",
+  "board": "esp32-s3-devkitc-1",
+  "version": "v1.0.0",
   "flash_files": [
     {
-      "offset": "0x1000",
+      "offset": "0x0000",
       "file": "bootloader.bin"
     },
     {

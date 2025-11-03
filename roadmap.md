@@ -15,6 +15,16 @@ ESP Morse Machine
 - Voorkeur voor Serial.printf()
 - snprintf()
 
+## Let op!
+***platformio*** commando via volledige path:
+```
+~/.platformio/penv/bin/platformio
+```
+idem voor ***pio***:
+```
+~/.platformio/penv/bin/pio
+```
+
 ⸻
 ## WiFi gedrag
 	1.	ESP probeert verbinding te maken met opgeslagen SSID + wachtwoord.
@@ -90,3 +100,57 @@ ESP Morse Machine
 ## Logging:
 	•	Serial.printf voor systeemstatus
 	•	Tijdens Morse-uitvoer: elke punt/streep live naar Serial
+
+⸻
+## Build System & Flash Configuratie
+
+### PlatformIO Custom Build Script (scripts/custom_build.py)
+
+Het project gebruikt een custom build script dat automatisch flash configuraties genereert voor verschillende ESP platforms.
+
+#### ESP32 - Dynamische Flash Configuratie via idedata.json:
+	1.	Pre-build:
+	    - Kopieert custom partitions.csv naar project directory (indien gespecificeerd)
+	    - Kopieert boot_app0.bin uit framework
+	2.	Post-build:
+	    - Genereert idedata.json via PlatformIO
+	    - Leest flash_images array met offsets voor:
+	        * bootloader.bin
+	        * partitions.bin  
+	        * boot_app0.bin
+	    - Leest application_offset voor firmware.bin
+	    - Kopieert alle bestanden met correcte offsets
+	    - Genereert flash.json met complete flash configuratie
+	3.	Post-buildfs:
+	    - Kopieert littlefs.bin of spiffs.bin
+	    - Leest filesystem offset uit partitions.csv
+	    - Update flash.json met filesystem image
+
+#### ESP8266 - Statische Flash Configuratie:
+	1.	Pre-build:
+	    - Geen actie (ESP8266 heeft geen partitions)
+	2.	Post-build:
+	    - Kopieert firmware.bin met offset 0x0
+	    - Genereert flash.json
+	3.	Post-buildfs:
+	    - Kopieert littlefs.bin of spiffs.bin
+	    - Gebruikt standaard offset 0x300000
+	    - Update flash.json met filesystem image
+
+#### Output per project:
+Elk project krijgt een directory: `projects/morseMachine/{board}/{version}/`
+Bevat:
+	•	flash.json - Complete flash configuratie met offsets
+	•	firmware.bin - Application binary
+	•	littlefs.bin of spiffs.bin - Filesystem image
+	•	ESP32 specifiek:
+	    - bootloader.bin
+	    - partitions.bin
+	    - boot_app0.bin
+	    - partitions.csv (human readable)
+
+#### Voordelen:
+	•	Automatisch correcte flash offsets per platform
+	•	Ondersteuning voor custom partition schemes
+	•	Ready-to-flash configuratie voor productie
+	•	Geen handmatige offset berekeningen nodig

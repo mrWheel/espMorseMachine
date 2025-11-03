@@ -1,6 +1,6 @@
 {
   "board": "esp32dev",
-  "version": "v2.2.2",
+  "version": "v1.1.1",
   "flash_files": [
     {
       "offset": "0x1000",
