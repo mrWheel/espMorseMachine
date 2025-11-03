@@ -1,0 +1,26 @@
+{
+  "board": "esp32dev",
+  "version": "v2.2.2",
+  "flash_files": [
+    {
+      "offset": "0x1000",
+      "file": "bootloader.bin"
+    },
+    {
+      "offset": "0x8000",
+      "file": "partitions.bin"
+    },
+    {
+      "offset": "0xe000",
+      "file": "boot_app0.bin"
+    },
+    {
+      "offset": "0x10000",
+      "file": "firmware.bin"
+    },
+    {
+      "offset": "0x290000",
+      "file": "spiffs.bin"
+    }
+  ]
+}

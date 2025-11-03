@@ -168,20 +168,19 @@ sendButton.addEventListener("click", async () =>
   // 2) Meld start aan Serial
   await serialStart(text);
 
-  // 3) Haal Morse op
-  let morse = "";
-  try
-  {
-    const res = await fetch(`/morse?text=${encodeURIComponent(text)}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    morse = await res.text();
-  }
-  catch (err)
-  {
-    logLine(`Fout bij /morse: ${String(err)}`, "#cc1122");
-    setUiEnabled(true);
-    return;
-  }
+  // 3) Morse map voor conversie
+  const morseMap = {
+    'A': '.-',    'B': '-...',  'C': '-.-.',  'D': '-..',
+    'E': '.',     'F': '..-.',  'G': '--.',   'H': '....',
+    'I': '..',    'J': '.---',  'K': '-.-',   'L': '.-..',
+    'M': '--',    'N': '-.',    'O': '---',   'P': '.--.',
+    'Q': '--.-',  'R': '.-.',   'S': '...',   'T': '-',
+    'U': '..-',   'V': '...-',  'W': '.--',   'X': '-..-',
+    'Y': '-.--',  'Z': '--..',
+    '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+    '5': '.....', '6': '-....', '7': '--...', '8': '---..',
+    '9': '----.', '0': '-----'
+  };
 
   // 4) Nieuwe regel voor Morse
   const morseLine = newMorseLine();
@@ -191,50 +190,61 @@ sendButton.addEventListener("click", async () =>
   const letterGap = dotDuration * 3;
   const wordGap = dotDuration * 7;
 
-  // 6) Speel Morse synchroon af
-  for (let i = 0; i < morse.length; i++)
+  // 6) Verwerk tekst character per character
+  const upperText = text.toUpperCase();
+  
+  for (let charIdx = 0; charIdx < upperText.length; charIdx++)
   {
-    const symbol = morse[i];
-
-    if (symbol === '.' || symbol === '-')
+    const char = upperText[charIdx];
+    
+    if (char === ' ')
     {
-      const duration = (symbol === '.') ? dotDuration : dash;
-
-      lampOn();
-      gpioWrite(true);
-      serialSymbol(symbol);
-      appendSymbol(morseLine, symbol);
-
-      await sleep(duration);
-
-      lampOff();
-      gpioWrite(false);
-
-      await sleep(dotDuration);
+      //-- Woordspatie
+      appendSymbol(morseLine, '    ', '#888888');
+      serialSymbol("WORD");
+      await sleep(wordGap);
     }
-    else if (symbol === ' ')
+    else if (morseMap[char])
     {
-      // Tel aantal spaties om te onderscheiden tussen letters/woorden
-      let spaceCount = 1;
-      while (i + spaceCount < morse.length && morse[i + spaceCount] === ' ')
+      //-- Toon (LETTER) vóór morse patroon
+      const letterLabel = `(${char})`;
+      appendSymbol(morseLine, letterLabel, '#0066cc');
+      
+      //-- Stuur letter label ook naar Serial
+      try 
       {
-        spaceCount++;
+        await fetch(`/serial?label=${encodeURIComponent(letterLabel)}`);
+      } 
+      catch (e) {}
+      
+      const morsePattern = morseMap[char];
+      
+      //-- Speel morse patroon af
+      for (let i = 0; i < morsePattern.length; i++)
+      {
+        const symbol = morsePattern[i];
+        const duration = (symbol === '.') ? dotDuration : dash;
+        
+        lampOn();
+        gpioWrite(true);
+        serialSymbol(symbol);
+        appendSymbol(morseLine, symbol);
+        
+        await sleep(duration);
+        
+        lampOff();
+        gpioWrite(false);
+        
+        await sleep(dotDuration);
       }
-
-      appendSymbol(morseLine, ' '.repeat(spaceCount));
-
-      if (spaceCount >= 4)
+      
+      //-- Letterspatie (na morse patroon, tussen letters)
+      if (charIdx < upperText.length - 1 && upperText[charIdx + 1] !== ' ')
       {
-        serialSymbol("WORD");
-        await sleep(wordGap);
-      }
-      else
-      {
+        appendSymbol(morseLine, '  ', '#888888');
         serialSymbol("SPACE");
         await sleep(letterGap);
       }
-
-      i += (spaceCount - 1);
     }
   }
 

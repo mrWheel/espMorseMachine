@@ -24,6 +24,7 @@
   #include <FS.h>
   #include <LittleFS.h>
   #include <WebServer.h>
+  #include <esp_partition.h>
   WebServer server(80);
 #else
   #error "Define ESP8266 or ESP32 via -DESP8266 or -DESP32"
@@ -62,6 +63,94 @@ std::map<char, String> morseMap =
 // ------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------
+#if defined(ESP32)
+void printPartitionTable()
+{
+  Serial.println("\n=== Partition Table ===");
+  Serial.printf("%-16s %-8s %-8s %-10s %-10s\n", "Name", "Type", "SubType", "Offset", "Size");
+  Serial.println("------------------------------------------------------------");
+  
+  esp_partition_iterator_t iterator = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+  
+  while (iterator != NULL)
+  {
+    const esp_partition_t* partition = esp_partition_get(iterator);
+    
+    //-- Type string
+    const char* typeStr = "???";
+    if (partition->type == ESP_PARTITION_TYPE_APP)
+    {
+      typeStr = "app";
+    }
+    else if (partition->type == ESP_PARTITION_TYPE_DATA)
+    {
+      typeStr = "data";
+    }
+    
+    //-- SubType string
+    char subTypeStr[16] = {0};
+    if (partition->type == ESP_PARTITION_TYPE_APP)
+    {
+      if (partition->subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY)
+      {
+        snprintf(subTypeStr, sizeof(subTypeStr), "factory");
+      }
+      else if (partition->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0)
+      {
+        snprintf(subTypeStr, sizeof(subTypeStr), "ota_0");
+      }
+      else if (partition->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1)
+      {
+        snprintf(subTypeStr, sizeof(subTypeStr), "ota_1");
+      }
+      else
+      {
+        snprintf(subTypeStr, sizeof(subTypeStr), "ota_%d", partition->subtype - ESP_PARTITION_SUBTYPE_APP_OTA_0);
+      }
+    }
+    else if (partition->type == ESP_PARTITION_TYPE_DATA)
+    {
+      if (partition->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA)
+      {
+        snprintf(subTypeStr, sizeof(subTypeStr), "ota");
+      }
+      else if (partition->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS)
+      {
+        snprintf(subTypeStr, sizeof(subTypeStr), "nvs");
+      }
+      else if (partition->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS)
+      {
+        snprintf(subTypeStr, sizeof(subTypeStr), "spiffs");
+      }
+      else if (partition->subtype == ESP_PARTITION_SUBTYPE_DATA_FAT)
+      {
+        snprintf(subTypeStr, sizeof(subTypeStr), "fat");
+      }
+      else
+      {
+        snprintf(subTypeStr, sizeof(subTypeStr), "%d", partition->subtype);
+      }
+    }
+    else
+    {
+      snprintf(subTypeStr, sizeof(subTypeStr), "%d", partition->subtype);
+    }
+    
+    Serial.printf("%-16s %-8s %-8s 0x%08x 0x%08x\n",
+                  partition->label,
+                  typeStr,
+                  subTypeStr,
+                  partition->address,
+                  partition->size);
+    
+    iterator = esp_partition_next(iterator);
+  }
+  
+  esp_partition_iterator_release(iterator);
+  Serial.println("=======================\n");
+}
+#endif
+
 String textToMorse(const String &text)
 {
     String morse = "";
@@ -346,6 +435,7 @@ void handleVersion()
 
 // Seriële logging synchroon met frontend:
 // /serial?start=Tekst
+// /serial?label=(X)
 // /serial?symbol=.,-,SPACE,WORD
 // /serial?end=1
 void handleSerialLog()
@@ -354,6 +444,14 @@ void handleSerialLog()
   {
     String t = server.arg("start");
     Serial.printf("📝 Tekst: %s\n", t.c_str());
+    server.send(200, "text/plain", "OK");
+    return;
+  }
+
+  if (server.hasArg("label"))
+  {
+    String label = server.arg("label");
+    Serial.print(label);
     server.send(200, "text/plain", "OK");
     return;
   }
@@ -441,6 +539,10 @@ void setup()
   Serial.println("=== ESP Morse Machine ===");
   Serial.printf("Version: %s\n", PROG_VERSION);
   Serial.println("===========================");
+
+  #if defined(ESP32)
+  printPartitionTable();
+  #endif
 
   if (!FSYS.begin())
   {
