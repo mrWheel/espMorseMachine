@@ -359,6 +359,9 @@ def post_build_action(source, target, env):
   #-- Zoek naar filesystem image (littlefs.bin of spiffs.bin)
   log_message("Zoek naar filesystem image...\n")
   fs_images = ["littlefs.bin", "spiffs.bin"]
+  fs_found = False
+  
+  #-- Check eerst in build_dir
   for fs_img in fs_images:
     fs_src = os.path.join(build_dir, fs_img)
     if os.path.exists(fs_src):
@@ -373,8 +376,28 @@ def post_build_action(source, target, env):
             "offset": fs_offset,
             "file": fs_img
           })
+          fs_found = True
         else:
           log_message(f"ℹ️ Filesystem offset niet gevonden, {fs_img} toegevoegd zonder offset\n")
+  
+  #-- Als niet gevonden in build_dir, check of er al een filesystem image in target_dir staat
+  if not fs_found:
+    for fs_img in fs_images:
+      fs_dst = os.path.join(target_dir, fs_img)
+      if os.path.exists(fs_dst):
+        log_message(f"Bestaande filesystem image gevonden: **{fs_img}**\n")
+        #-- Probeer filesystem offset te vinden uit partitions
+        fs_offset = get_filesystem_offset(build_dir, target_dir)
+        if fs_offset:
+          flash_config.append({
+            "offset": fs_offset,
+            "file": fs_img
+          })
+          log_message(f"✓ {fs_img} toegevoegd aan flash.json met offset {fs_offset}\n")
+          fs_found = True
+        else:
+          log_message(f"⚠️ Filesystem offset niet gevonden voor {fs_img}\n")
+        break
   
   #-- Sorteer flash_config op offset
   if flash_config:

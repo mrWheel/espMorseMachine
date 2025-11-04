@@ -3,7 +3,7 @@ Versie gevonden in build_flags: v1.0.0
 # Project morseMachine
 
 ```
-Build Log - 2025-11-04 13:37:18
+Build Log - 2025-11-04 13:47:12
 Board: esp32-s3-devkitc-1
 Version: v1.0.0
 Environment: esp32-s3
@@ -45,6 +45,11 @@ Kopieer firmware met offset 0x10000:
 
 Zoek naar filesystem image...
 
+Bestaande filesystem image gevonden: **littlefs.bin**
+
+  ℹ️  Filesystem offset gevonden in partitions.csv: 0x790000
+✓ littlefs.bin toegevoegd aan flash.json met offset 0x790000
+
 ✓ flash.json aangemaakt: projects/morseMachine/esp32-s3-devkitc-1/v1.0.0/flash.json
 
 
@@ -57,6 +62,8 @@ Zoek naar filesystem image...
 - `0xe000` → **boot_app0.bin**
 
 - `0x10000` → **firmware.bin**
+
+- `0x790000` → **littlefs.bin**
 
 
 ### Partitions.csv Inhoud:
@@ -78,7 +85,4 @@ Kopieer filesystem image: **littlefs.bin**
 
 ✓ littlefs.bin → projects/morseMachine/esp32-s3-devkitc-1/v1.0.0/littlefs.bin
 
-
-  ℹ️  Filesystem offset gevonden in partitions.csv: 0x790000
-✓ flash.json bijgewerkt met littlefs.bin
 
