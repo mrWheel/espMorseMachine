@@ -10,12 +10,13 @@ Het script genereert voor elk project automatisch:
 - Flash configuratie met correcte offsets per platform
 - Complete set flash images (bootloader, partitions, firmware, filesystem)
 - JSON bestand met flash instructies voor productie
+- `build_log.md` met alle (fout)meldingen van het `custom_build.py` script
 
 ## Configuratie
 
 ### Environment Naming Conventie
 
-Environment namen in `platformio.ini` MOETEN de volgende structuur hebben:
+Environment namen in `platformio.ini` KUNNEN de volgende structuur hebben:
 
 ```
 [env:{board}-v{major}_{minor}_{patch}]
@@ -30,6 +31,8 @@ Environment namen in `platformio.ini` MOETEN de volgende structuur hebben:
 **Componenten:**
 - `{board}`: Board identifier uit PlatformIO (bijv. `esp32dev`, `esp32-s3`, `esp12e`)
 - `v{major}_{minor}_{patch}`: Versienummer met underscores (wordt omgezet naar `v1.0.0` format)
+
+Maar als deze NIET deze structuur hebben, zoek dan in de `build_flags` of in idedata.json naar "VERSION" en gebruik deze met dezelfde structuur: `v{major}.{minor}.{patch}`
 
 ### Project Directory Structuur
 
@@ -110,9 +113,10 @@ Het script bevat een intelligente auto-sync functie die automatisch detecteert w
 #### ESP32 Platforms
 1. **Partitions CSV**
    - Controleert `board_build.partitions` in platformio.ini
-   - Als gespecificeerd: kopieert custom partitions file
-   - Anders: gebruikt `default.csv` uit framework
-   - Doel: `projects/{project}/{board}/{version}/partitions.csv`
+   - Als gespecificeerd: kopieert custom partitions file naar: 
+     - Doel: `projects/{project}/{board}/{version}/partitions.csv`
+   - Anders: gebruikt `default.csv` uit framework en kopieer deze naar:
+     - Doel: `projects/{project}/{board}/{version}/partitions.csv`
 
 2. **Boot App Binary**
    - Zoekt `boot_app0.bin` in framework directory
@@ -128,10 +132,7 @@ Het script bevat een intelligente auto-sync functie die automatisch detecteert w
 
 #### ESP32 Platforms - Dynamische Configuratie
 
-1. **Genereer idedata.json**
-   ```python
-   platformio run -e {environment} -t idedata
-   ```
+1. **Lees en interpreteer idedata.json**
 
 2. **Parse Flash Images**
    Leest uit `idedata.json`:
@@ -139,11 +140,12 @@ Het script bevat een intelligente auto-sync functie die automatisch detecteert w
    {
      "extra": {
        "flash_images": [
-         {"offset": "0x1000", "path": "/path/to/bootloader.bin"},
-         {"offset": "0x8000", "path": "/path/to/partitions.bin"},
-         {"offset": "0xe000", "path": "/path/to/boot_app0.bin"}
+         {"offset": "0x?????", "path": "/path/to/bootloader.bin"},
+         {"offset": "0x?????", "path": "/path/to/partitions.bin"},
+         {"offset": "0x?????", "path": "/path/to/boot_app0.bin"},
+         {"offset": "0x?????", "path": "/path/to/??????.bin"}
        ],
-       "application_offset": "0x10000"
+       "application_offset": "0x?????"
      }
    }
    ```
@@ -160,21 +162,21 @@ Het script bevat een intelligente auto-sync functie die automatisch detecteert w
      "board": "esp32dev",
      "version": "v1.0.0",
      "flash_files": [
-       {"offset": "0x1000", "file": "bootloader.bin"},
-       {"offset": "0x8000", "file": "partitions.bin"},
-       {"offset": "0xe000", "file": "boot_app0.bin"},
-       {"offset": "0x10000", "file": "firmware.bin"}
+       {"offset": "0x?????", "file": "bootloader.bin"},
+       {"offset": "0x?????", "file": "partitions.bin"},
+       {"offset": "0x?????", "file": "boot_app0.bin"},
+       {"offset": "0x?????", "file": "firmware.bin"}
      ]
    }
    ```
 
 #### ESP32 Fallback Mode
-Als idedata.json niet beschikbaar of parsing faalt:
-- Gebruikt standaard ESP32 offsets:
-  - 0x1000: bootloader.bin
-  - 0x8000: partitions.bin
-  - 0xe000: boot_app0.bin
-  - 0x10000: firmware.bin
+Als `idedata.json` niet beschikbaar of parsing faalt:
+- Gebruikt offsets uit `partitions.csv`:
+  - 0x????: bootloader.bin
+  - 0x????: partitions.bin
+  - 0x????: boot_app0.bin
+  - 0x?????: firmware.bin
 
 #### ESP8266 Platforms - Statische Configuratie
 
@@ -188,6 +190,7 @@ Als idedata.json niet beschikbaar of parsing faalt:
      "version": "v3.3.3",
      "flash_files": [
        {"offset": "0x0", "file": "firmware.bin"}
+       {"offset": "0x????", "file": "spiffs.bin"}
      ]
    }
    ```
@@ -204,8 +207,10 @@ Als idedata.json niet beschikbaar of parsing faalt:
 2. **Kopieer Filesystem Image**
 
 3. **Bepaal Filesystem Offset**
+
+   **Methode 1 - Uit idedata.json (ESP32):**
    
-   **Methode 1 - Uit partitions.csv (ESP32):**
+   **Methode 2 - Uit partitions.csv (ESP32):**
    - Leest partitions.csv uit project directory
    - Check zowel `Name` als `SubType` kolommen
    - Ondersteunt: spiffs, littlefs, fatfs, ffat
@@ -215,9 +220,9 @@ Als idedata.json niet beschikbaar of parsing faalt:
    spiffs,   data, spiffs,  0x790000, 0x70000
    ```
    
-   **Methode 2 - Standaard offsets:**
-   - ESP32: 0x290000
-   - ESP8266: 0x300000
+   **Methode 3 - Standaard offsets:**
+   - ESP32: 0x290000  -> display foutmelding
+   - ESP8266: 0x300000  -> display foutmelding
 
 4. **Update flash.json**
    Voegt filesystem image toe aan flash_files array
@@ -300,11 +305,12 @@ extra_scripts = scripts/custom_build.py
 ### Met Custom Partitions
 
 ```ini
-[env:esp32dev-v2_0_0]
+[env:esp32dev]
 platform = espressif32
 board = esp32dev
 extra_scripts = scripts/custom_build.py
 board_build.partitions = projects/myProject/esp32dev/v2.0.0/custom.csv
+build_flags = -DVERSION="v1.0.1"
 ```
 
 ### ESP8266 Configuratie
@@ -331,11 +337,11 @@ board_build.partitions = projects/myProject/esp32-s3/v1.5.0/huge_app.csv
 ### Volledige Build (Automatisch)
 ```bash
 # Via CLI
-platformio run -e esp32dev-v1_0_0
-platformio run -e esp32dev-v1_0_0 -t buildfs
+~/.platformio/penv/bin/platformio run -e esp32dev-v1_0_0
+~/.platformio/penv/bin/platformio run -e esp32dev-v1_0_0 -t buildfs
 
 # Of combined
-platformio run -e esp32dev-v1_0_0 && platformio run -e esp32dev-v1_0_0 -t buildfs
+~/.platformio/penv/bin/platformio run -e esp32dev-v1_0_0 && platformio run -e esp32dev-v1_0_0 -t buildfs
 ```
 
 ### VSCode Build Knoppen
@@ -348,9 +354,9 @@ Het script werkt automatisch met VSCode PlatformIO UI:
 ### Clean Build (Optioneel)
 Alleen nodig bij problemen of complete rebuild:
 ```bash
-platformio run -e esp32dev-v1_0_0 -t clean
-platformio run -e esp32dev-v1_0_0
-platformio run -e esp32dev-v1_0_0 -t buildfs
+~/.platformio/penv/bin/platformio run -e esp32dev-v1_0_0 -t clean
+~/.platformio/penv/bin/platformio run -e esp32dev-v1_0_0
+~/.platformio/penv/bin/platformio run -e esp32dev-v1_0_0 -t buildfs
 ```
 
 ## Console Output
@@ -386,7 +392,7 @@ platformio run -e esp32dev-v1_0_0 -t buildfs
   Zoek naar filesystem image...
   Kopieer filesystem image: littlefs.bin
   ✓ littlefs.bin → projects/myProject/esp32dev/v1.0.0/littlefs.bin
-  ℹ️  Filesystem offset gevonden in partitions.csv: 0x290000
+  ℹ️  Filesystem offset gevonden in partitions.csv: 0x270000
   ✓ flash.json bijgewerkt met littlefs.bin
 >>> [POST-BUILDFS] Klaar.
 ```
