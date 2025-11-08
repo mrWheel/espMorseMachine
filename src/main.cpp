@@ -255,55 +255,49 @@ bool connectWithSaved(uint32_t timeoutSec)
 
 bool startPortalAndReconnect(const String &apName)
 {
-  // Construct per platform
+  //-- Construct per platform
   #if defined(ESP8266)
     WiFiManager wm;
   #elif defined(ESP32)
-    // Let the library manage AP + WebServer internally
     WiFiManager wm;
   #endif
 
   wm.setDebugOutput(true);
 
-  // Portal-timeout (sluit na WIFI_TIMEOUT seconden)
-  // (Bij sommige versies heet dit setConfigPortalTimeout; jouw build accepteerde setTimeout)
+  //-- Portal timeout
   wm.setTimeout(WIFI_TIMEOUT);
 
-  // Voor de zekerheid AP+STA mode, maar géén handmatige softAP hier.
+  //-- Voor de zekerheid AP+STA mode
   WiFi.mode(WIFI_AP_STA);
   delay(100);
 
-  // Toon resultaat en ingevoerde data
-  String ssid = WiFi.SSID();
-  String psk  = WiFi.psk();
-  Serial.println("Start with saved credentials:");
-  Serial.printf("  SSID: %s\n", ssid.c_str());
-  Serial.printf("  PSK : %s\n", psk.c_str());
-  bool connected = wm.autoConnect(ssid.c_str(), psk.c_str());
-  if(!connected) 
-  {
-    Serial.println("Failed to connect");
-    Serial.println("🧭 Start WiFiManager portal...");
-    connected = wm.startConfigPortal(apName.c_str()); // blokkeert tot connect/timeout
-  } 
-  else 
-  {
-    //if you get here you have connected to the WiFi    
-    Serial.println("connected...yeey :)");
-  }
+  Serial.println("🧭 Start WiFiManager portal...");
+  Serial.printf("📛 Portal SSID: %s\n", apName.c_str());
+  Serial.println("🔓 Portal Wachtwoord: (geen)");
 
-  Serial.println("💾 Terug uit portal — credentials nu:");
-  Serial.printf("  SSID: %s\n", ssid.c_str());
-  Serial.printf("  PSK : %s\n", psk.c_str());
+  //-- Start portal (blokkeert tot connect/timeout)
+  bool connected = wm.startConfigPortal(apName.c_str());
 
   if (!connected)
   {
     Serial.println("⚠️  Portal afgebroken of timeout.");
+    WiFi.mode(WIFI_STA);
+    delay(100);
+    return false;
   }
 
-  // Forceren: nog een keer proberen met wat nu ingesteld staat
+  //-- Portal gaf nieuwe credentials
+  String ssid = WiFi.SSID();
+  String psk  = WiFi.psk();
+  
+  Serial.println("💾 Terug uit portal — nieuwe credentials:");
+  Serial.printf("  SSID: %s\n", ssid.c_str());
+  Serial.printf("  PSK : %s\n", psk.c_str());
+
+  //-- Probeer nu te verbinden met nieuwe credentials
   if (ssid.length())
   {
+    Serial.println("🔌 Probeer verbinden met nieuwe credentials...");
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid.c_str(), psk.c_str());
 
@@ -318,14 +312,14 @@ bool startPortalAndReconnect(const String &apName)
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    Serial.println("✅ Verbonden met opgeslagen credentials");
+    Serial.println("✅ Verbonden met nieuwe credentials");
     Serial.printf("📶 SSID: %s\n", WiFi.SSID().c_str());
     Serial.printf("🌐 IP  : %s\n", WiFi.localIP().toString().c_str());
     return true;
   }
 
   Serial.printf("❌ Verbinden met nieuwe credentials mislukt (status=%d)\n", WiFi.status());
-  WiFi.mode(WIFI_STA);   // netjes terug naar STA
+  WiFi.mode(WIFI_STA);
   delay(100);
   return false;
 }
@@ -486,49 +480,33 @@ void handleSerialLog()
 // ------------------------------------------------------------
 bool startWifi()
 {
-    String apName = "espMorseMachine-" + macSuffixWwXxYyZz();
+  String apName = "espMorseMachine-" + macSuffixWwXxYyZz();
 
-    Serial.println("=== WiFi Initialisatie ===");
+  Serial.println("=== WiFi Initialisatie ===");
 
-    // Stap 1: probeer opgeslagen netwerk
-    Serial.println("Probeer met opgeslagen credentials te verbinden...");
-    Serial.printf("📛 AP/Systeemnaam: %s\n", apName.c_str());
-    if (connectWithSaved(WIFI_TIMEOUT))
-    {
-        return true;
-    }
-    return false; // geen WiFi verbinding
+  //-- Stap 1: probeer opgeslagen netwerk
+  Serial.println("Probeer met opgeslagen credentials te verbinden...");
+  Serial.printf("📛 AP/Systeemnaam: %s\n", apName.c_str());
+  if (connectWithSaved(WIFI_TIMEOUT))
+  {
+    return true;
+  }
 
-/*** 
-    // Stap 2: vraag of portal moet starten
-    bool usePortal = askYesNo("Portal starten (Y/n)", true, 20000UL);
-    bool connected = false;
+  //-- Stap 3: start portal en probeer te verbinden
+  bool connected = startPortalAndReconnect(apName);
 
-    if (usePortal)
-    {
-        connected = startPortalAndReconnect(apName);
-    }
+  if (connected)
+  {
+    return true;
+  }
 
-    if (connected)
-    {
-        return; // klaar
-    }
-
-    // Stap 3: nog steeds geen verbinding, vraag AP
-    Serial.println("⚠️  Geen verbinding na portal.");
-    bool asAp = askYesNo("Starten als AP? (y/N)", false, 20000UL);
-
-    if (asAp)
-    {
-        startAp(apName);
-    }
-    else
-    {
-        Serial.println("🔁 Geen AP gewenst, herstart...");
-        delay(200);
-        ESP.restart();
-    }
-***/
+  //-- Stap 4: nog steeds geen verbinding, herstart ESP
+  Serial.println("❌ Verbinding mislukt na portal.");
+  Serial.println("🔁 Herstart ESP...");
+  delay(2000);
+  ESP.restart();
+  
+  return false; // wordt nooit bereikt door ESP.restart()
 }
 
 // ------------------------------------------------------------
