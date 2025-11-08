@@ -484,7 +484,7 @@ void handleSerialLog()
 // ------------------------------------------------------------
 // WiFi start
 // ------------------------------------------------------------
-void startWifi()
+bool startWifi()
 {
     String apName = "espMorseMachine-" + macSuffixWwXxYyZz();
 
@@ -495,9 +495,11 @@ void startWifi()
     Serial.printf("📛 AP/Systeemnaam: %s\n", apName.c_str());
     if (connectWithSaved(WIFI_TIMEOUT))
     {
-        return;
+        return true;
     }
+    return false; // geen WiFi verbinding
 
+/*** 
     // Stap 2: vraag of portal moet starten
     bool usePortal = askYesNo("Portal starten (Y/n)", true, 20000UL);
     bool connected = false;
@@ -526,6 +528,7 @@ void startWifi()
         delay(200);
         ESP.restart();
     }
+***/
 }
 
 // ------------------------------------------------------------
@@ -549,7 +552,12 @@ void setup()
     Serial.println("❌ Filesystem mount failed!");
   }
 
-  startWifi();
+  if (!startWifi())
+  {
+    Serial.println("❌ Geen WiFi verbinding, restart...");
+    delay(2000);
+    ESP.restart();
+  }
 
   // Web routes
   server.on("/",           handleRoot);

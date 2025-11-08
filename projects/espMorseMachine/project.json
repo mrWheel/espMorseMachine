@@ -1,0 +1,9 @@
+{
+  "name": "espMorseMachine",
+  "long_name_en": "A morse machine for the esp SOC's",
+  "long_name_nl": "Een morse machine voor de esp SOC's",
+  "description_en": "The main purpose of this project is to test the Aandewiel Web Flasher",
+  "description_nl": "Het belangrijkste doel van dit project is om de Aandewiel Web Flasher te testen",
+  "flasher": "esptool",
+  "image": "project.png"
+}
